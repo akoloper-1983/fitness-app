@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fitness App 💪</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+<style>
+body { margin:0; padding:0; font-family:'Poppins',sans-serif; background:#f5f5f7; color:#333; transition:0.3s; }
+h1,h2,h3{ margin:0.5em 0; }
+.container{ max-width:400px; margin:0 auto; padding:15px; }
+.card{ background:#fff; border-radius:15px; box-shadow:0 4px 15px rgba(0,0,0,0.1); padding:20px; margin-bottom:20px; transition:0.3s; }
+button{ margin:10px 5px 0 5px; padding:12px 20px; font-size:16px; cursor:pointer; border:none; border-radius:30px; background:linear-gradient(90deg,#ff7a18,#af002d); color:#fff; font-weight:600; transition:0.3s; }
+button:active{ transform:scale(0.96); }
+#darkModeToggle{ background:#333;color:#fff; font-size:14px; padding:6px 12px; position:fixed; top:10px; right:10px; border-radius:20px; }
+img{ width:100%; border-radius:15px; margin:15px 0; transition:0.3s; }
+#timer{ font-size:20px; font-weight:600; margin:5px 0; }
+#rest{ color:#ff3b3b; font-weight:600; margin:5px 0; }
+input{ padding:10px; width:60%; border-radius:20px; border:1px solid #ccc; font-size:16px; margin-right:10px; transition:0.3s; }
+#history{text-align:left; margin-top:10px; max-height:120px; overflow-y:auto;}
+canvas{margin-top:15px; border-radius:10px;}
+body.dark{ background:#121212; color:#e0e0e0; }
+body.dark .card{ background:#1e1e1e; color:#e0e0e0; box-shadow:0 4px 15px rgba(0,0,0,0.3); }
+body.dark input{ background:#333;color:#fff;border:1px solid #555; }
+body.dark button{ background:linear-gradient(90deg,#ff7a18,#af002d); }
+</style>
+</head>
+<body>
+
+<button id="darkModeToggle" onclick="toggleDarkMode()">Toggle Dark Mode</button>
+
+<div class="container">
+<h1>Fitness App 💪</h1>
+
+<div id="plans" class="card">
+<h2>Select Plan</h2>
+<button onclick="startWorkout('Beginner')">Beginner</button>
+<button onclick="startWorkout('Intermediate')">Intermediate</button>
+<button onclick="startWorkout('Advanced')">Advanced</button>
+</div>
+
+<div id="exerciseArea" class="card" style="display:none;">
+<h2 id="exerciseName"></h2>
+<img id="exerciseImg" onmousedown="dragStart(event)">
+<p id="timer"></p>
+<p id="rest"></p>
+<button onclick="nextExercise()">Next Exercise</button>
+</div>
+
+<div id="weightTracker" class="card">
+<h2>Weight Tracker</h2>
+<input type="number" id="currentWeight" placeholder="Today's weight (kg)">
+<button onclick="saveWeight()">Save Weight</button>
+<h3>History</h3>
+<div id="history"></div>
+<h3>Progress Chart</h3>
+<canvas id="weightChart"></canvas>
+</div>
+
+</div>
+
+<script>
+// ===== Exercise Library =====
+const exerciseLibrary = {
+  Beginner: [
+    { name:"Jumping Jacks", reps:30, animation:"https://media.giphy.com/media/26tPoyDhjiJ2pna9S/giphy.gif" },
+    { name:"Push Ups", reps:10, animation:"https://media.giphy.com/media/3oEjI6SIIHBdRxXI40/giphy.gif" },
+    { name:"Squats", reps:15, animation:"https://media.giphy.com/media/l41lI4bYmcsPJX9Go/giphy.gif" },
+    { name:"High Knees", reps:30, animation:"https://media.giphy.com/media/3oKIPwoeGErMmaI43C/giphy.gif" },
+    { name:"Glute Bridges", reps:15, animation:"https://media.giphy.com/media/3o7qDYqKiUtW6G5LwA/giphy.gif" }
+  ],
+  Intermediate: [
+    { name:"Burpees", reps:12, animation:"https://media.giphy.com/media/xUOwGkqrmW3Zg2eZ7C/giphy.gif" },
+    { name:"Lunges", reps:20, animation:"https://media.giphy.com/media/3oEjI6SIIHBdRxXI40/giphy.gif" },
+    { name:"Plank", duration:45, animation:"https://media.giphy.com/media/HTg5Nhb/giphy.gif" },
+    { name:"Bicycle Crunches", reps:20, animation:"https://media.giphy.com/media/l41lI4bYmcsPJX9Go/giphy.gif" },
+    { name:"Tricep Dips", reps:15, animation:"https://media.giphy.com/media/3o7qDYqKiUtW6G5LwA/giphy.gif" }
+  ],
+  Advanced: [
+    { name:"Mountain Climbers", reps:30, animation:"https://media.giphy.com/media/W5vFSdL/giphy.gif" },
+    { name:"Pull Ups", reps:10, animation:"https://media.giphy.com/media/nWc6fAG/giphy.gif" },
+    { name:"Jump Squats", reps:20, animation:"https://media.giphy.com/media/lfHzP4F/giphy.gif" },
+    { name:"Pike Push Ups", reps:12, animation:"https://media.giphy.com/media/3o7qDYqKiUtW6G5LwA/giphy.gif" },
+    { name:"Flutter Kicks", reps:30, animation:"https://media.giphy.com/media/l41lI4bYmcsPJX9Go/giphy.gif" }
+  ]
+};
+
+// ===== Weekly rotation =====
+function getWeekNumber(d){
+  d = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const oneJan = new Date(d.getFullYear(),0,1);
+  const numberOfDays = Math.floor((d - oneJan)/(24*60*60*1000));
+  return Math.ceil((d.getDay()+1 + numberOfDays)/7);
+}
+function selectWeeklyExercises(plan){
+  const week=getWeekNumber(new Date());
+  const pool=exerciseLibrary[plan];
+  const startIndex=week%pool.length;
+  const selected=[];
+  for(let i=0;i<3;i++){ selected.push(pool[(startIndex+i)%pool.length]); }
+  return selected;
+}
+
+// ===== Workout variables =====
+let workouts={Beginner:[],Intermediate:[],Advanced:[]};
+let selectedPlan=null;
+let currentExercise=0;
+let timeLeft=null;
+let timerInterval=null;
+let isResting=false;
+let restDuration=15;
+let isDragging=false;
+let startY=0;
+let startHeight=300;
+
+// ===== Workout functions =====
+function startWorkout(plan){
+  selectedPlan=plan;
+  currentExercise=0;
+  workouts[plan]=selectWeeklyExercises(plan);
+  document.getElementById('plans').style.display='none';
+  document.getElementById('exerciseArea').style.display='block';
+  isResting=false;
+  showExercise();
+}
+function showExercise(){
+  const exercise=workouts[selectedPlan][currentExercise];
+  document.getElementById('exerciseName').innerText=exercise.name;
+  document.getElementById('exerciseImg').src=exercise.animation;
+  clearInterval(timerInterval);
+  document.getElementById('rest').innerText="";
+  if(!isResting){
+    if(exercise.duration){
+      timeLeft=exercise.duration;
+      document.getElementById('timer').innerText=`Time: ${timeLeft}s`;
+      timerInterval=setInterval(()=>{
+        timeLeft--; document.getElementById('timer').innerText=`Time: ${timeLeft}s`;
+        if(timeLeft<=0){ clearInterval(timerInterval); startRest(); }
+      },1000);
+    } else { document.getElementById('timer').innerText=`${exercise.reps} reps`; }
+  }
+}
+function startRest(){
+  isResting=true;
+  timeLeft=restDuration;
+  document.getElementById('rest').innerText=`Rest: ${timeLeft}s`;
+  timerInterval=setInterval(()=>{
+    timeLeft--; document.getElementById('rest').innerText=`Rest: ${timeLeft}s`;
+    if(timeLeft<=0){ clearInterval(timerInterval); isResting=false; nextExercise(); }
+  },1000);
+}
+function nextExercise(){
+  if(currentExercise<workouts[selectedPlan].length-1){
+    currentExercise++; showExercise();
+  } else {
+    alert("Workout Complete! 🎉");
+    document.getElementById('plans').style.display='block';
+    document.getElementById('exerciseArea').style.display='none';
+    selectedPlan=null; currentExercise=0;
+  }
+}
+
+// ===== Drag GIF =====
+function dragStart(e){
+  isDragging=true; startY=e.clientY; startHeight=document.getElementById('exerciseImg').height;
+  document.addEventListener('mousemove',dragMove);
+  document.addEventListener('mouseup',dragEnd);
+}
+function dragMove(e){
+  if(!isDragging) return;
+  const newHeight=Math.max(100,startHeight+(e.clientY-startY));
+  document.getElementById('exerciseImg').height=newHeight;
+  document.getElementById('exerciseImg').width=newHeight;
+}
+function dragEnd(){ isDragging=false; document.removeEventListener('mousemove',dragMove); document.removeEventListener('mouseup',dragEnd); }
+
+// ===== Weight Tracker =====
+function saveWeight(){
+  const weightInput=document.getElementById('currentWeight').value;
+  if(!weightInput) return alert("Please enter your weight");
+  const today=new Date().toLocaleDateString();
+  let weights=JSON.parse(localStorage.getItem('weights'))||[];
+  weights.push({date:today,weight:parseFloat(weightInput)});
+  localStorage.setItem('weights',JSON.stringify(weights));
+  document.getElementById('currentWeight').value="";
+  displayHistory(); updateChart();
+}
+function displayHistory(){
+  const historyDiv=document.getElementById('history');
+  let weights=JSON.parse(localStorage.getItem('weights'))||[];
+  if(weights.length===0){ historyDiv.innerHTML="No entries yet."; return; }
+  let html="<ul>";
+  for(let i=weights.length-1;i>=0;i--){ html+=`<li>${weights[i].date}: ${weights[i].weight} kg</li>`; }
+  html+="</ul>"; historyDiv.innerHTML=html;
+}
+let chart;
+function updateChart(){
+  let weights=JSON.parse(localStorage.getItem('weights'))||[];
+  weights.sort((a,b)=>new Date(a.date)-new Date(b.date));
+  const labels=weights.map(w=>w.date);
+  const data=weights.map(w=>w.weight);
+  const ctx=document.getElementById('weightChart').getContext('2d');
+  if(chart) chart.destroy();
+  chart=new Chart(ctx,{type:'line',data:{labels:labels,datasets:[{label:'Weight (kg)',data:data,borderColor:'rgb(255,122,24)',tension:0.2,fill:false}]},options:{responsive:true,scales:{y:{beginAtZero:false}}}});
+}
+
+// ===== Dark Mode =====
+function toggleDarkMode(){ document.body.classList.toggle('dark'); localStorage.setItem('darkMode',document.body.classList.contains('dark')); }
+if(localStorage.getItem('darkMode')==='true') document.body.classList.add('dark');
+
+// ===== Notifications =====
+function requestNotificationPermission(){
+  if('Notification'in window){
+    if(Notification.permission==="default"){
+      Notification.requestPermission().then(permission=>{
+        if(permission==="granted") scheduleDailyNotifications();
+      });
+    } else if(Notification.permission==="granted"){ scheduleDailyNotifications(); }
+  }
+}
+function scheduleDailyNotifications(){
+  const now=new Date();
+  const workoutHour=8; const weightHour=20;
+  let workoutTime=new Date(); workoutTime.setHours(workoutHour,0,0,0);
+  if(workoutTime<now) workoutTime.setDate(workoutTime.getDate()+1);
+  setTimeout(()=>{ new Notification("Fitness App 💪",{body:"Time for your workout today!"});
+    setInterval(()=>new Notification("Fitness App 💪",{body:"Time for your workout today!"}),24*60*60*1000);
+  },workoutTime-now);
+
+  let weightTime=new Date(); weightTime.setHours(weightHour,0,0,0);
+  if(weightTime<now) weightTime.setDate(weightTime.getDate()+1);
+  setTimeout(()=>{ new Notification("Fitness App ⚖️",{body:"Don't forget to log your weight today!"});
+    setInterval(()=>new Notification("Fitness App ⚖️",{body:"Don't forget to log your weight today!"}),24*60*60*1000);
+  },weightTime-now);
+}
+requestNotificationPermission();
+displayHistory(); updateChart();
+</script>
+
+</body>
+</html>
