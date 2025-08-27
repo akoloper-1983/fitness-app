@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fitness App</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+  <h1>Fitness App</h1>
+  <button id="darkModeBtn">Toggle Dark Mode</button>
+</header>
+
+<main>
+  <select id="workoutSelect">
+    <option value="Beginner">Beginner</option>
+    <option value="Intermediate">Intermediate</option>
+    <option value="Advanced">Advanced</option>
+  </select>
+
+  <div id="exerciseContainer" class="exercise"></div>
+
+  <div id="summary">
+    <h2>Workout Complete!</h2>
+    <p>Great job! Track your weight progress below.</p>
+    <button onclick="restartWorkout()">Restart Workout</button>
+  </div>
+
+  <div id="chartContainer">
+    <h2>Weight Progress</h2>
+    <canvas id="weightChart" width="300" height="200"></canvas>
+  </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
