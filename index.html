@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fitness App with Dark Mode & Rotation</title>
+<style>
+:root {
+  --bg-color:#f0f4f8;
+  --text-color:#333;
+  --header-bg:#1e88e5;
+  --button-bg:#1e88e5;
+  --button-text:#fff;
+}
+body { margin:0; font-family: Arial,sans-serif; background-color:var(--bg-color); color:var(--text-color); display:flex; flex-direction:column; align-items:center; transition: background-color 0.3s, color 0.3s;}
+header { background-color:var(--header-bg); color:white; text-align:center; width:100%; padding:20px; display:flex; justify-content:space-between; align-items:center;}
+header h1 { margin:0; }
+main { padding:10px; width:90%; max-width:400px; text-align:center; }
+select { padding:10px; margin:10px 0; font-size:16px; border-radius:8px; border:1px solid #ccc; width:100%; }
+.exercise { display:flex; flex-direction:column; align-items:center; background-color:#fff; padding:20px; border-radius:12px; box-shadow:0 2px 5px rgba(0,0,0,0.1); margin:10px 0; }
+.exercise img { width:150px; height:150px; border-radius:12px; margin-bottom:15px; }
+.exercise-info h3 { margin:0 0 10px 0; font-size:1.3em; }
+.timer { font-size:2em; font-weight:bold; color:#1e88e5; margin-bottom:10px; }
+button { padding:10px 20px; border:none; border-radius:8px; background-color:var(--button-bg); color:var(--button-text); font-weight:bold; cursor:pointer; margin-top:10px; }
+#summary { display:none; }
+body.dark { --bg-color:#121212; --text-color:#eee; --header-bg:#333; --button-bg:#555; --button-text:#fff; }
+</style>
+</head>
+<body>
+
+<header>
+<h1>Fitness App</h1>
+<button id="darkModeBtn">Toggle Dark Mode</button>
+</header>
+
+<main>
+<select id="workoutSelect">
+<option value="Beginner">Beginner</option>
+<option value="Intermediate">Intermediate</option>
+<option value="Advanced">Advanced</option>
+</select>
+
+<div id="exerciseContainer" class="exercise"></div>
+
+<div id="summary">
+<h2>Workout Complete!</h2>
+<p>Great job! Track your weight progress below.</p>
+<button onclick="restartWorkout()">Restart Workout</button>
+</div>
+
+<div id="chartContainer">
+<h2>Weight Progress</h2>
+<canvas id="weightChart" width="300" height="200"></canvas>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// Weekly rotation simulation
+const weekNumber = new Date().getWeekNumber(); // custom function below
+function getCurrentWeekExercises(level) {
+  const base = workoutData[level];
+  const rotationIndex = weekNumber % base.length;
+  return [...base.slice(rotationIndex), ...base.slice(0, rotationIndex)];
+}
+
+Date.prototype.getWeekNumber = function(){
+  const d = new Date(Date.UTC(this.getFullYear(), this.getMonth(), this.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
+  return Math.ceil((((d - yearStart) / 86400000) + 1)/7);
+};
+
+const workoutData = {
+  Beginner: [
+    {name:"Jumping Jacks", duration:30, animation:"https://media.giphy.com/media/26tPoyDhjiJ2pna9S/giphy.gif"},
+    {name:"Push-Ups", duration:20, animation:"https://media.giphy.com/media/3oEjI6SIIHBdRxXI40/giphy.gif"},
+    {name:"Squats", duration:25, animation:"https://media.giphy.com/media/3oEjI6SIIHBdRxXI40/giphy.gif"},
+    {name:"Lunges", duration:20, animation:"https://media.giphy.com/media/3oEjI6SIIHBdRxXI40/giphy.gif"},
+    {name:"Plank", duration:30, animation:"https://media.giphy.com/media/l0MYEqEzwMWFCg8rm/giphy.gif"}
+  ],
+  Intermediate: [
+    {name:"Burpees", duration:25, animation:"https://media.giphy.com/media/3oEjI6SIIHBdRxXI40/giphy.gif"},
+    {name:"Push-Ups", duration:30, animation:"https://media.giphy.com/media/3oEjI6SIIHBdRxXI40/giphy.gif"},
+    {name:"Jump Squats", duration:25, animation:"https://media.giphy.com/media/xT5LMHxhOfscxPfIfm/giphy.gif"},
+    {name:"Lunges", duration:25, animation:"https://media.giphy.com/media/3oEjI6SIIHBdRxXI40/giphy.gif"},
+    {name:"Glute Bridges", duration:30, animation:"https://media.giphy.com/media/3oEjI6SIIHBdRxXI40/giphy.gif"}
+  ],
+  Advanced: [
+    {name:"Burpees with Push-Up", duration:30, animation:"https://media.giphy.com/media/3oEjI6SIIHBdRxXI40/giphy.gif"},
+    {name:"Pistol Squats", duration:25, animation:"https://media.giphy.com/media/3oEjI6SIIHBdRxXI40/giphy.gif"},
+    {name:"Plank to Push-Up", duration:30, animation:"https://media.giphy.com/media/l0MYEqEzwMWFCg8rm/giphy.gif"},
+    {name:"Jump Lunges", duration:25, animation:"https://media.giphy.com/media/xT5LMHxhOfscxPfIfm/giphy.gif"},
+    {name:"Mountain Climbers", duration:30, animation:"https://media.giphy.com/media/l0MYC0LajbaPoEADu/giphy.gif"}
+  ]
+};
+
+let currentWorkout = "Beginner";
+let currentExercise = 0;
+let timerInterval;
+
+const exerciseContainer = document.getElementById("exerciseContainer");
+const summaryDiv = document.getElementById("summary");
+
+function loadExercise() {
+  const exercises = getCurrentWeekExercises(currentWorkout);
+  if(currentExercise >= exercises.length) {
+    exerciseContainer.style.display="none";
+    summaryDiv.style.display="block";
+    return;
+  }
+  summaryDiv.style.display="none";
+  exerciseContainer.style.display="flex";
+  const ex = exercises[currentExercise];
+  exerciseContainer.innerHTML = `
+    <img src="${ex.animation}" alt="${ex.name}">
+    <div class="exercise-info">
+      <h3>${ex.name}</h3>
+      <div class="timer" id="timer">${ex.duration}</div>
+    </div>
+  `;
+  startTimer(ex.duration);
+}
+
+function startTimer(duration) {
+  let timeLeft = duration;
+  const timerElem = document.getElementById("timer");
+  timerInterval = setInterval(() => {
+    timeLeft--;
+    timerElem.textContent = timeLeft;
+    if(timeLeft <= 0) {
+      clearInterval(timerInterval);
+      restTimer(10);
+    }
+  }, 1000);
+}
+
+function restTimer(duration) {
+  exerciseContainer.innerHTML += `<div class="timer">Rest: ${duration}</div>`;
+  let timeLeft = duration;
+  const restElem = exerciseContainer.querySelector(".timer:last-child");
+  const restInterval = setInterval(() => {
+    timeLeft--;
+    restElem.textContent = "Rest: " + timeLeft;
+    if(timeLeft <= 0) {
+      clearInterval(restInterval);
+      currentExercise++;
+      loadExercise();
+    }
+  }, 1000);
+}
+
+document.getElementById("workoutSelect").addEventListener("change", function(){
+  currentWorkout = this.value;
+  currentExercise = 0;
+  loadExercise();
+});
+
+function restartWorkout() {
+  currentExercise = 0;
+  loadExercise();
+}
+
+// Dark mode toggle
+const darkBtn = document.getElementById("darkModeBtn");
+darkBtn.addEventListener("click", () => {
+  document.body.classList.toggle("dark");
+  localStorage.setItem("darkMode", document.body.classList.contains("dark"));
+});
+
+// Load dark mode preference
+if(localStorage.getItem("darkMode")==="true") document.body.classList.add("dark");
+
+// Initial load
+loadExercise();
+
+// Weight Chart
+const ctx = document.getElementById('weightChart').getContext('2d');
+const weightChart = new Chart(ctx, {
+  type: 'line',
+  data: {
+    labels: ['Week 1','Week 2','Week 3','Week 4'],
+    datasets: [{
+      label: 'Weight (kg)',
+      data: [70, 69.5, 69, 68.5],
+      borderColor: '#1e88e5',
+      backgroundColor: 'rgba(30,136,229,0.2)',
+      fill: true,
+      tension: 0.3
+    }]
+  },
+
